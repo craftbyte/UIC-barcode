@@ -2,8 +2,8 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>org.uic.barcode</groupId>
-  <artifactId>org.uic.barcode</artifactId>
+  <groupId>org.uic</groupId>
+  <artifactId>barcode</artifactId>
   <version>1.4.13</version>
   <packaging>jar</packaging>
   <name>UIC Barcode</name>
