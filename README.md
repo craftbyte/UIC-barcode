@@ -11,7 +11,9 @@ This repository contains three things:
 - Registers for national or company specific extensions to this standard, 
     in the folder `registers`.
 
-The Maven repository for the Java library is available at https://github.com/orgs/UnionInternationalCheminsdeFer/packages?repo_name=UIC-barcode
+The Maven repository for the Java library is available [here](https://github.com/orgs/UnionInternationalCheminsdeFer/packages?repo_name=UIC-barcode).
+
+An interactive rendering of the latest Rail Ticket Data v3 ASN.1 may be viewed [here](https://asn1.bt4pt.eu/oid/iso/identified-organization/dod/internet/private/enterprise/uic/fcb/modules/rtd/v3/6/).
 
 OIDs for the ASN.1 modules are documented in `oid.md`, and defined in ASN.1 form
 in `asn-specs/oids.asn`.
