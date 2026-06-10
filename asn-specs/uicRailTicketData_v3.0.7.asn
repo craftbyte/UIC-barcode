@@ -2,7 +2,7 @@
 -- Author: ClemensGantert
 -- Created: Mon Jun 28 14:14:28 CEST 2021
 ASN-Module-RailTicketData { iso(1) identified-organization(3) dod(6)
-    internet(1) private(4) enterprise(1) uic(17218) fcb(1) modules(0) rtd(2) v3(3) 5 }
+    internet(1) private(4) enterprise(1) uic(17218) fcb(1) modules(0) rtd(2) v3(3) 7 }
     DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
 -- imports and exports
