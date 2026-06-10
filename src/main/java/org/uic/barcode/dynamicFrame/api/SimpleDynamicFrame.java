@@ -134,108 +134,87 @@ public class SimpleDynamicFrame implements IDynamicFrame {
 	 * <p>
 	 * Note: an appropriate security provider (e.g. BC) must be registered before
 	 *
-	 * @param prov the registered security provider
-	 * @return the return error code
-	 * @throws EncodingFormatException 
-	 */	
+	 * @param provider the registered security provider
+	 * @return the return error code, or OK
+     */
 	@Override
-	public int validateLevel2(Provider prov) throws EncodingFormatException {
-		
-		Provider provider = prov;
-		
-		if (getLevel2Data() == null
-				|| getLevel2Data().getLevel1Data() == null 
-				|| getLevel2Data().getLevel1Data().getLevel2KeyAlg() == null
-				|| getLevel2Data().getLevel1Data().getLevel2KeyAlg().isEmpty()) {
-			return Constants.LEVEL2_VALIDATION_NO_KEY;
-		}
-		
-		String level2KeyAlg = getLevel2Data().getLevel1Data().getLevel2KeyAlg();
-		String level2SigAlg = this.getLevel2Data().getLevel1Data().getLevel2SigningAlg();
+	public int validateLevel2(Provider provider) throws EncodingFormatException {
+        // Check there is a level 2 public key present in the level 1 data
+        if (getLevel2Data() == null)
+            return Constants.LEVEL2_VALIDATION_NO_SIGNATURE;
+        if (getLevel2Data().getLevel1Data() == null)
+            return Constants.LEVEL2_VALIDATION_NO_SIGNATURE;
+        if (getLevel2Data().getLevel1Data().getLevel2publicKey() == null)
+            return Constants.LEVEL2_VALIDATION_NO_SIGNATURE;
 
-	 
-		if (level2KeyAlg == null || level2KeyAlg.isEmpty()) {
-			return Constants.LEVEL2_VALIDATION_NO_KEY;
-		}
-		
-		if (level2Signature == null || level2Signature.length == 0) {
-			return Constants.LEVEL2_VALIDATION_NO_SIGNATURE;
-		}
-					
-		String keyAlgName = null;
-		try {
-			keyAlgName = AlgorithmNameResolver.getName(AlgorithmNameResolver.TYPE_KEY_GENERATOR_ALG, level2KeyAlg,provider);
-		} catch (Exception e1) {
-			return Constants.LEVEL2_VALIDATION_KEY_ALG_NOT_IMPLEMENTED;	
-		}
-		if (keyAlgName == null || keyAlgName.isEmpty()) {
-			return Constants.LEVEL2_VALIDATION_KEY_ALG_NOT_IMPLEMENTED;	
-		}
-		
-		PublicKey key = null;
-		try {
-			byte[] keyBytes = this.getLevel2Data().getLevel1Data().getLevel2publicKey();
-			
-			if (provider == null) {
-				provider = SecurityUtils.findPublicKeyProvider(level2KeyAlg,keyBytes);
-			} 
-			KeyFactory keyFactory = KeyFactory.getInstance(keyAlgName,provider);
-			if (keyFactory != null) {
-				key = ECKeyEncoder.fromEncoded(keyBytes,level2KeyAlg, provider);
-			} else {
-				return Constants.LEVEL2_VALIDATION_KEY_ALG_NOT_IMPLEMENTED;	
-			}
-			
-		} catch (Exception e1) {
-			return Constants.LEVEL2_VALIDATION_KEY_ALG_NOT_IMPLEMENTED;	
-		}
-		
+        byte[] keyBytes = this.getLevel2Data().getLevel1Data().getLevel2publicKey();
+        String level2KeyAlg = getLevel2Data().getLevel1Data().getLevel2KeyAlg();
+        String level2SigAlg = this.getLevel2Data().getLevel1Data().getLevel2SigningAlg();
 
-		//find the algorithm name for the signature OID
-		String sigAlgName = null;
+        // Check the issuer actually told us what kind of signature we're supposed to be validating
+        if (level2KeyAlg == null || level2SigAlg == null)
+            return Constants.LEVEL2_VALIDATION_ENCODING_ERROR;
+
+        // Check that there actually is a level 2 signature present
+        if (level2Signature == null || level2Signature.length == 0)
+            return Constants.LEVEL2_VALIDATION_FRAUD;
+
+        // Decode the level 2 public key
+        PublicKey key;
+        if (level2KeyAlg.equals(Constants.KG_EC_256))
+            try {
+                key = ECKeyEncoder.fromEncoded(keyBytes, Constants.KG_EC_256, provider);
+            } catch (IllegalArgumentException e) {
+                return Constants.LEVEL2_VALIDATION_ENCODING_ERROR;
+            }
+        else
+            return Constants.LEVEL2_VALIDATION_KEY_ALG_NOT_IMPLEMENTED;
+
+		// Get the signature algorithm name per the OID
+		String sigAlgName;
 		try {
-			sigAlgName = AlgorithmNameResolver.getSignatureAlgorithmName(level2SigAlg,provider);
+			sigAlgName = AlgorithmNameResolver.getSignatureAlgorithmName(level2SigAlg, provider);
+            if (sigAlgName == null)
+                return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
 		} catch (Exception e1) {
 			return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
 		}
-		if (sigAlgName == null) {
-			return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
-		}
-		
-		Signature sig = null;
+
+        // Init the signature instance, per the algorithm name
+		Signature sig;
 		try {
-			if (provider == null) {
+			if (provider == null)
 				sig = Signature.getInstance(sigAlgName);
-			} else {
-				sig = Signature.getInstance(sigAlgName,provider);
-			}
+			else
+				sig = Signature.getInstance(sigAlgName, provider);
 		} catch (NoSuchAlgorithmException e) {
 			return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
 		}
+
+        // Load the public key into the signature verifier
 		try {
 			sig.initVerify(key);
 		} catch (InvalidKeyException e) {
-			return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
-		}
-		
-		try {
-			byte[] signedData2 = getLevel2DataBin();
-			sig.update(signedData2);
-		} catch (SignatureException e) {
-			return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
-		} catch (IllegalArgumentException | UnsupportedOperationException e) {
 			return Constants.LEVEL2_VALIDATION_ENCODING_ERROR;
 		}
 
-        byte[] signature = level2Signature;
+        // Construct the to-be-validated data
 		try {
-			if (sig.verify(signature)){
+			byte[] signedData2 = getLevel2DataBin();
+			sig.update(signedData2);
+		} catch (SignatureException | IllegalArgumentException | UnsupportedOperationException e) {
+			return Constants.LEVEL2_VALIDATION_ENCODING_ERROR;
+		}
+
+        // Verify the data
+		try {
+			if (sig.verify(level2Signature)){
 				return Constants.LEVEL2_VALIDATION_OK;
 			} else {
 				return Constants.LEVEL2_VALIDATION_FRAUD;
 			}
 		} catch (SignatureException e) {
-			return Constants.LEVEL2_VALIDATION_SIG_ALG_NOT_IMPLEMENTED;
+			return Constants.LEVEL2_VALIDATION_FRAUD;
 		}
   	}
 	
@@ -387,13 +366,9 @@ public class SimpleDynamicFrame implements IDynamicFrame {
 	 */
 	@Override
 	public void addDynamicContent(IUicDynamicContent content) throws EncodingFormatException {
-				
 		level2Data.setLevel2Data(new SimpleData());
-		
-		level2Data.getLevel2Data().setFormat(DynamicContentCoder.dynamicContentDataFDC1);
-			
-		level2Data.getLevel2Data().setData(DynamicContentCoder.encode(content, DynamicContentCoder.dynamicContentDataFDC1));
-		
+		level2Data.getLevel2Data().setFormat(Constants.DATA_TYPE_FDC_VERSION_1);
+		level2Data.getLevel2Data().setData(DynamicContentCoder.encode(content, Constants.DATA_TYPE_FDC_VERSION_1));
 	}
 	
 	/**
@@ -413,14 +388,13 @@ public class SimpleDynamicFrame implements IDynamicFrame {
 	 */
 	@Override
 	public IUicDynamicContent getDynamicContent() {
-		
-		if (this.getLevel2Data() == null || 
-				this.getLevel2Data().getLevel2Data() == null){
-				return null;
-		}
-		
+        if (this.getLevel2Data() == null)
+            return null;
+        if (this.getLevel2Data().getLevel2Data() == null)
+            return null;
+        if (!this.getLevel2Data().getLevel2Data().getFormat().equals(Constants.DATA_TYPE_FDC_VERSION_1))
+            return null;
 		return DynamicContentCoder.decode(level2Data.getLevel2Data().getData());
-			
 	}
 	
 
@@ -430,7 +404,6 @@ public class SimpleDynamicFrame implements IDynamicFrame {
 	 * Note: an appropriate security provider (e.g. BC) must be registered before
 	 *
 	 * @param key the key
-	 * @throws Exception 
 	 */
 	@Override
 	public void signLevel1(PrivateKey key) throws Exception {
@@ -445,11 +418,10 @@ public class SimpleDynamicFrame implements IDynamicFrame {
 	 * Note: an appropriate security provider (e.g. BC) must be registered before
 	 *
 	 * @param key the key
-	 * @param prov provider - security provider that must be sued to create the signature
-	 * @throws Exception 
+	 * @param provider security provider that must be sued to create the signature
 	 */
 	@Override
-	public void signLevel1(PrivateKey key, Provider prov) throws Exception {
+	public void signLevel1(PrivateKey key, Provider provider) throws Exception {
 		
 		if (level2Data == null) return;
 		
@@ -457,17 +429,17 @@ public class SimpleDynamicFrame implements IDynamicFrame {
 		
 		if (level1Data == null) return;
 
-		if (prov == null) {
+		if (provider == null) {
 			//check for a provider supporting the key
-			prov = SecurityUtils.findPrivateKeyProvider(key);
+			provider = SecurityUtils.findPrivateKeyProvider(key);
 		}
 		
 		//find the algorithm name for the signature OID
-		String algo = AlgorithmNameResolver.getSignatureAlgorithmName(level1Data.getLevel1SigningAlg(), prov);
+		String algo = AlgorithmNameResolver.getSignatureAlgorithmName(level1Data.getLevel1SigningAlg(), provider);
 		Signature sig = null;
 
-		if (prov != null) {
-			sig = Signature.getInstance(algo, prov);
+		if (provider != null) {
+			sig = Signature.getInstance(algo, provider);
 		} else {
 			sig = Signature.getInstance(algo);
 		}

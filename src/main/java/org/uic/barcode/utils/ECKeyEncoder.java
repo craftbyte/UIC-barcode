@@ -57,7 +57,10 @@ public class ECKeyEncoder {
     	
 		String keyAlgName = null;
 		try {
-			keyAlgName = AlgorithmNameResolver.getName(AlgorithmNameResolver.TYPE_KEY_GENERATOR_ALG, oid,provider);
+			if (provider == null)
+				keyAlgName = AlgorithmNameResolver.getName(AlgorithmNameResolver.TYPE_KEY_GENERATOR_ALG, oid);
+			else
+				keyAlgName = AlgorithmNameResolver.getName(AlgorithmNameResolver.TYPE_KEY_GENERATOR_ALG, oid,provider);
 		} catch (Exception e1) {
 			throw new IllegalArgumentException("algorithm unknown in: " + provider.getName());
 		}
@@ -73,8 +76,11 @@ public class ECKeyEncoder {
     		X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
     		    		
     		if (keyAlgName != null && keyAlgName.length() > 0) {
-    		
-    			KeyFactory keyFactory = KeyFactory.getInstance(keyAlgName,provider);
+				KeyFactory keyFactory;
+				if (provider == null)
+					keyFactory = KeyFactory.getInstance(keyAlgName);
+				else
+					keyFactory = KeyFactory.getInstance(keyAlgName,provider);
 
     			key = keyFactory.generatePublic(keySpec);
     			
@@ -97,8 +103,11 @@ public class ECKeyEncoder {
 		    	
 		    	//we need to know the curve!
 				String curveName = EllipticCurveNames.getInstance().getName(oid);
-
-				AlgorithmParameters parameters = AlgorithmParameters.getInstance(keyAlgName, provider);
+				AlgorithmParameters parameters;
+				if (provider == null)
+					parameters = AlgorithmParameters.getInstance(keyAlgName);
+				else
+					parameters = AlgorithmParameters.getInstance(keyAlgName, provider);
 				parameters.init(new ECGenParameterSpec(curveName));
 				ECParameterSpec ecParameters = parameters.getParameterSpec(ECParameterSpec.class);			
 				
@@ -226,7 +235,11 @@ public class ECKeyEncoder {
 	        final BigInteger y = new BigInteger(1, Arrays.copyOfRange(encoded, offset, offset + keySizeBytes));
 	        final ECPoint w = new ECPoint(x, y);
 	        final ECPublicKeySpec ecPublicKeySpec = new ECPublicKeySpec(w, params);
-	        final KeyFactory keyFactory = KeyFactory.getInstance("EC",provider);
+			KeyFactory keyFactory;
+			if (provider == null)
+				keyFactory = KeyFactory.getInstance("EC");
+			else
+				keyFactory = KeyFactory.getInstance("EC",provider);
 	        return (ECPublicKey) keyFactory.generatePublic(ecPublicKeySpec);
 	    }
 
