@@ -78,7 +78,7 @@ public class SsbFrame {
 			
 		}
 		
-		signedData = Arrays.copyOfRange(bytes, 0, offset);
+		signedData = Arrays.copyOfRange(bytes, 0, 58);
 		
 		byte[] signatureBytes = new byte[56];
 				
